@@ -3,3 +3,4 @@ dist/
 dist-v2/
 .env
 .lua/
+lua.skill.yaml

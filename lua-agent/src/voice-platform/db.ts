@@ -18,6 +18,7 @@ export type DbCase = {
   pipeline_status: string | null;
   safety_cleared: boolean | null;
   approved_at: Date | string | null;
+  has_minor_involved: boolean | null;
 };
 
 export type EpisodeTheme = {
@@ -36,6 +37,7 @@ export type NewCaseInput = {
   contactPathway: string | null;
   sourceUrls: string[];
   pipelineStatus: string;
+  hasMinorInvolved: boolean;
 };
 
 function requireEnv(name: string): string {
@@ -81,9 +83,10 @@ export async function createCase(data: NewCaseInput): Promise<DbCase> {
       guest_readiness,
       contact_pathway,
       source_urls,
-      pipeline_status
+      pipeline_status,
+      has_minor_involved
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
     RETURNING *`,
     [
       data.title,
@@ -95,6 +98,7 @@ export async function createCase(data: NewCaseInput): Promise<DbCase> {
       data.contactPathway,
       data.sourceUrls,
       data.pipelineStatus,
+      data.hasMinorInvolved,
     ]
   );
 

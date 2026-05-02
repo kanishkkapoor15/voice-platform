@@ -72,12 +72,12 @@ async function discoverCaseLeads(
     schema: RawCaseLeadsSchema,
     system:
       "You are a research agent for a podcast that amplifies voices from vulnerable and survivor communities in Ireland.",
-    prompt: `Search topic: ${input.topic}
+    prompt: `Topic: ${input.topic}
 Keywords: ${(input.keywords ?? []).join(", ")}
 
-Generate exactly 5 realistic case leads that this podcast could feature. Include real types of stories from harassment survivors, disability advocates, refugees, domestic violence survivors, medical neglect cases, and workplace discrimination victims.
+Generate 5 representative podcast case lead outlines typical of stories that have appeared in Irish news outlets or NGO reports on this topic. These are editorial research outlines for human review — not verified real URLs. Editors must independently validate sources before any outreach.
 
-For each lead provide a realistic title, a plausible source URL from a legitimate news outlet or NGO, a two-sentence snippet, and the source domain name. Keep URLs short and syntactically valid.
+For each lead provide a realistic title, a plausible source URL from a legitimate Irish news outlet or NGO, a two-sentence snippet describing the story, and the source domain name. Keep URLs short and syntactically valid.
 
 Only include cases where the person has chosen to speak publicly. Never include cases involving minors.`,
     schemaHint: `{
@@ -207,7 +207,7 @@ function dbCaseToSafetyCase(dbCase: DbCase): EnrichedCase {
     ),
     contactPathway: dbCase.contact_pathway ?? "",
     summary: dbCase.summary ?? "",
-    hasMinorInvolved: false,
+    hasMinorInvolved: dbCase.has_minor_involved ?? false,
   };
 }
 
@@ -415,6 +415,7 @@ async function runDiscoveryPipeline(
         contactPathway: currentCase.contactPathway || null,
         sourceUrls: [currentCase.sourceUrl],
         pipelineStatus: "enriched",
+        hasMinorInvolved: currentCase.hasMinorInvolved,
       });
 
       let safety;
@@ -498,12 +499,15 @@ async function sendApprovedInvite(input: z.infer<typeof InviteInputSchema>) {
     throw new Error("Case has not been approved. Cannot send invite.");
   }
   if (!dbCase.contact_pathway) {
-    await updateCase(input.caseId, { pipelineStatus: "approved" });
+    await addToHumanReview(
+      input.caseId,
+      "No contact pathway found — manual editorial action required before outreach"
+    );
     return {
       success: false,
       caseId: input.caseId,
       emailSent: false,
-      reason: "No contact pathway found; manual editorial action required.",
+      reason: "No contact pathway found — routed to human review queue.",
     };
   }
 
