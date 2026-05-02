@@ -1,4 +1,13 @@
 import { env } from "lua-cli";
+
+// Lua sandbox restricts process.nextTick — polyfill before pg loads
+if (typeof process !== "undefined" && typeof process.nextTick !== "function") {
+  (process as unknown as Record<string, unknown>).nextTick = (
+    fn: (...args: unknown[]) => void,
+    ...args: unknown[]
+  ) => { Promise.resolve().then(() => fn(...args)); };
+}
+
 import { Pool, type QueryResultRow } from "pg";
 import type { EpisodeMatch } from "./schemas";
 
