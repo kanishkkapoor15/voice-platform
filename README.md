@@ -8,7 +8,7 @@ A multi-agent podcast platform that helps Irish vulnerable, challenged, and surv
 - **Styling:** Tailwind CSS
 - **Database:** PostgreSQL with pgvector for semantic search
 - **ORM:** Drizzle ORM
-- **AI:** Vercel AI SDK with OpenAI (GPT-4o, text-embedding-3-small)
+- **AI:** Vercel AI SDK with Tensorix API (DeepSeek-V3.2, DeepSeek-R1, Qwen3-Embedding-8B)
 - **Email:** Resend
 - **Auth:** NextAuth.js (Credentials provider)
 - **CI:** GitHub Actions (lint + typecheck)
@@ -29,7 +29,7 @@ A multi-agent podcast platform that helps Irish vulnerable, challenged, and surv
 
 3. Fill in environment variables in `.env.local`:
    ```
-   OPENAI_API_KEY=your-key
+   TENSORIX_API_KEY=your-key  # get from your Tensorix dashboard
    POSTGRES_URL=your-postgres-url
    RESEND_API_KEY=your-resend-key
    NEXTAUTH_SECRET=your-secret

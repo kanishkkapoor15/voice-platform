@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { primaryModel } from "@/lib/ai/client";
 import { z } from "zod";
 import type { RawCaseLead, VerifiedCase } from "./types";
 
@@ -17,7 +17,7 @@ export async function runVerificationAgent(
 
   for (const lead of leads) {
     const { object: verification } = await generateObject({
-      model: openai("gpt-4o"),
+      model: primaryModel,
       schema: verificationSchema,
       prompt: `You are a verification agent. Assess the credibility of this case lead for a podcast platform.
 

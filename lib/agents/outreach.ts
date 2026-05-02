@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { primaryModel } from "@/lib/ai/client";
 import { Resend } from "resend";
 import { getCaseById, insertInvitation } from "@/lib/db/queries";
 import type { Invitation } from "@/lib/db/schema";
@@ -32,7 +32,7 @@ export async function runOutreachAgent(caseId: string): Promise<Invitation> {
     : "";
 
   const { text: emailBody } = await generateText({
-    model: openai("gpt-4o"),
+    model: primaryModel,
     prompt: `You are drafting an invitation email for Voice Platform, an Irish podcast that amplifies stories from vulnerable, challenged, and survivor communities.
 
 Draft a warm, human invitation email for this potential guest:

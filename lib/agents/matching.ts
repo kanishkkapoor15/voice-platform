@@ -1,5 +1,5 @@
 import { generateText } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { primaryModel } from "@/lib/ai/client";
 import { findSimilarEpisodes, updateCase, getCaseById } from "@/lib/db/queries";
 import type { EpisodeMatch } from "./types";
 
@@ -17,7 +17,7 @@ export async function runEpisodeMatchingAgent(
   for (const ep of episodes) {
     const row = ep as { id: string; title: string; description: string; relevance_score: number };
     const { text: explanation } = await generateText({
-      model: openai("gpt-4o"),
+      model: primaryModel,
       prompt: `In one sentence, explain why this podcast episode theme is a good match for this guest case.
 
 Episode: "${row.title}" — ${row.description}

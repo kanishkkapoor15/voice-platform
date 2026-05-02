@@ -1,6 +1,5 @@
-import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { embed } from "ai";
+import { generateObject, embed } from "ai";
+import { primaryModel, embeddingModel } from "@/lib/ai/client";
 import { z } from "zod";
 import { insertCase } from "@/lib/db/queries";
 import type { VerifiedCase, EnrichedCase } from "./types";
@@ -31,7 +30,7 @@ export async function runEnrichmentAgent(
 
   for (const vc of verifiedCases) {
     const { object: enrichment } = await generateObject({
-      model: openai("gpt-4o"),
+      model: primaryModel,
       schema: enrichmentSchema,
       prompt: `You are an enrichment agent for a podcast platform serving Irish vulnerable, challenged, and survivor communities.
 
@@ -56,7 +55,7 @@ RULES:
     });
 
     const { embedding: embeddingResult } = await embed({
-      model: openai.embedding("text-embedding-3-small"),
+      model: embeddingModel,
       value: enrichment.summary,
     });
 

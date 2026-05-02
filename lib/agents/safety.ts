@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { reasoningModel } from "@/lib/ai/client";
 import { z } from "zod";
 import { updateCase } from "@/lib/db/queries";
 import { insertHumanReview } from "@/lib/db/queries";
@@ -30,7 +30,7 @@ export async function runSafetyScreeningAgent(
   enrichedCase: EnrichedCase
 ): Promise<SafetyResult> {
   const { object: screening } = await generateObject({
-    model: openai("gpt-4o"),
+    model: reasoningModel,
     schema: safetySchema,
     prompt: `You are a safety screening agent for a podcast platform that invites vulnerable and survivor communities to share their stories. Analyse the following case for safety concerns.
 

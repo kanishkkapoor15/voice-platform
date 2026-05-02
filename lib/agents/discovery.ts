@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { primaryModel } from "@/lib/ai/client";
 import { z } from "zod";
 import type { RawCaseLead } from "./types";
 
@@ -19,7 +19,7 @@ export async function runDiscoveryAgent(input: {
   keywords: string[];
 }): Promise<RawCaseLead[]> {
   const { object } = await generateObject({
-    model: openai("gpt-4o"),
+    model: primaryModel,
     schema: discoveryResultSchema,
     prompt: `You are a discovery agent for an Irish podcast platform that highlights stories from vulnerable, challenged, and survivor communities.
 
