@@ -1,14 +1,16 @@
 import { generateObject } from "ai";
-import { primaryModel } from "@/lib/ai/client";
 import { z } from "zod";
-import type { RawCaseLead, VerifiedCase } from "./types";
+import { primaryModel } from "@/lib/ai/client";
+import type { RawCaseLead } from "./discovery";
 
-const verificationSchema = z.object({
+const VerificationResultSchema = z.object({
   credibilityScore: z.number().min(0).max(100),
   corroboratingSources: z.array(z.string()),
   verified: z.boolean(),
-  reasoning: z.string(),
+  reason: z.string(),
 });
+
+export type VerifiedCase = RawCaseLead & z.infer<typeof VerificationResultSchema>;
 
 export async function runVerificationAgent(
   leads: RawCaseLead[]
@@ -16,36 +18,32 @@ export async function runVerificationAgent(
   const results: VerifiedCase[] = [];
 
   for (const lead of leads) {
-    const { object: verification } = await generateObject({
-      model: primaryModel,
-      schema: verificationSchema,
-      prompt: `You are a verification agent. Assess the credibility of this case lead for a podcast platform.
+    try {
+      const { object } = await generateObject({
+        model: primaryModel,
+        schema: VerificationResultSchema,
+        prompt: `Assess the credibility of this potential podcast case:
 
 Title: ${lead.title}
 Source: ${lead.sourceUrl}
 Domain: ${lead.domain}
 Snippet: ${lead.snippet}
 
-SCORING RULES (add points for each that applies):
-- Domain authority — established news outlet or recognised publication: +30
-- Number of corroborating sources (each independent source: +20, max 3 sources = +60)
-- Named individuals or organisations present in the story: +15
-- Recent publication within 6 months: +10
-- Government or NGO source: +25
+Score from 0-100 based on:
+- Domain authority (established outlet = +30)
+- Whether the source is an NGO or government body (+25)
+- Whether named individuals or organisations are mentioned (+15)
+- Whether the story is recent within 6 months (+10)
+- Plausibility of corroborating sources (+20)
 
-Maximum possible score: 100
-Minimum to pass verification: 40
+Return credibilityScore, up to 3 corroborating source URLs,
+verified (true if score >= 40), and a reason explaining the score.`,
+      });
 
-Assess credibility, list any corroborating sources you can identify, and determine if this lead meets the 40-point threshold.
-Set verified=true only if credibilityScore >= 40.`,
-    });
-
-    results.push({
-      ...lead,
-      credibilityScore: verification.credibilityScore,
-      corroboratingSources: verification.corroboratingSources,
-      verified: verification.verified,
-    });
+      results.push({ ...lead, ...object });
+    } catch (err) {
+      console.error(`Verification failed for lead: ${lead.title}`, err);
+    }
   }
 
   return results;

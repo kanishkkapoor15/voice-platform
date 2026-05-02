@@ -5,90 +5,43 @@ import {
   integer,
   boolean,
   timestamp,
-  date,
   jsonb,
-  index,
+  vector,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
-export const cases = pgTable(
-  "cases",
-  {
-    id: uuid("id")
-      .primaryKey()
-      .default(sql`gen_random_uuid()`),
-    title: text("title").notNull(),
-    summary: text("summary"),
-    credibilityScore: integer("credibility_score"),
-    category: text("category", {
-      enum: [
-        "harassment",
-        "disability",
-        "refugee",
-        "domestic_violence",
-        "medical_neglect",
-        "workplace_discrimination",
-        "other",
-      ],
-    }),
-    region: text("region"),
-    guestReadiness: text("guest_readiness", {
-      enum: ["experienced", "first_time"],
-    }),
-    contactPathway: text("contact_pathway"),
-    sourceUrls: text("source_urls")
-      .array()
-      .default(sql`'{}'::text[]`),
-    episodeMatches: jsonb("episode_matches"),
-    pipelineStatus: text("pipeline_status", {
-      enum: [
-        "pending",
-        "verified",
-        "enriched",
-        "screened",
-        "matched",
-        "approved",
-        "archived",
-        "human_review",
-      ],
-    }).default("pending"),
-    safetyCleared: boolean("safety_cleared").default(false),
-    approvedAt: timestamp("approved_at", { withTimezone: true }),
-    embedding: text("embedding"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
-  },
-  (table) => [index("cases_created_idx").on(table.createdAt)]
-);
+export const cases = pgTable("cases", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  title: text("title").notNull(),
+  summary: text("summary"),
+  credibilityScore: integer("credibility_score"),
+  category: text("category"),
+  region: text("region"),
+  guestReadiness: text("guest_readiness"),
+  contactPathway: text("contact_pathway"),
+  sourceUrls: text("source_urls").array(),
+  episodeMatches: jsonb("episode_matches"),
+  pipelineStatus: text("pipeline_status").default("pending"),
+  safetyCleared: boolean("safety_cleared").default(false),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  embedding: vector("embedding", { dimensions: 1536 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
 
 export const episodeThemes = pgTable("episode_themes", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
+  id: uuid("id").primaryKey().defaultRandom(),
   title: text("title").notNull(),
   description: text("description"),
-  airDate: date("air_date"),
-  embedding: text("embedding"),
+  airDate: timestamp("air_date", { withTimezone: true }),
+  embedding: vector("embedding", { dimensions: 1536 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
 export const invitations = pgTable("invitations", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
+  id: uuid("id").primaryKey().defaultRandom(),
   caseId: uuid("case_id").references(() => cases.id, { onDelete: "cascade" }),
   episodeId: uuid("episode_id").references(() => episodeThemes.id),
-  status: text("status", {
-    enum: [
-      "sent",
-      "opened",
-      "responded",
-      "confirmed",
-      "pre_interview",
-      "recorded",
-      "aired",
-    ],
-  }).default("sent"),
+  status: text("status").default("sent"),
   inviteEmailBody: text("invite_email_body"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   openedAt: timestamp("opened_at", { withTimezone: true }),
@@ -98,9 +51,7 @@ export const invitations = pgTable("invitations", {
 });
 
 export const humanReviewQueue = pgTable("human_review_queue", {
-  id: uuid("id")
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
+  id: uuid("id").primaryKey().defaultRandom(),
   caseId: uuid("case_id").references(() => cases.id, { onDelete: "cascade" }),
   flagReason: text("flag_reason").notNull(),
   assignedTo: text("assigned_to"),

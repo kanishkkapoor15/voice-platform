@@ -1,10 +1,9 @@
 import { generateObject, embed } from "ai";
-import { primaryModel, embeddingModel } from "@/lib/ai/client";
 import { z } from "zod";
-import { insertCase } from "@/lib/db/queries";
-import type { VerifiedCase, EnrichedCase } from "./types";
+import { primaryModel, embeddingModel } from "@/lib/ai/client";
+import type { VerifiedCase } from "./verification";
 
-const enrichmentSchema = z.object({
+const EnrichmentSchema = z.object({
   issueCategory: z.enum([
     "harassment",
     "disability",
@@ -19,68 +18,54 @@ const enrichmentSchema = z.object({
   currentStatus: z.string(),
   guestReadiness: z.enum(["experienced", "first_time"]),
   contactPathway: z.string(),
-  summary: z.string(),
+  summary: z.string().max(800),
   hasMinorInvolved: z.boolean(),
 });
 
+export type EnrichedCase = VerifiedCase &
+  z.infer<typeof EnrichmentSchema> & {
+    embedding: number[];
+  };
+
 export async function runEnrichmentAgent(
-  verifiedCases: VerifiedCase[]
+  cases: VerifiedCase[]
 ): Promise<EnrichedCase[]> {
-  const enriched: EnrichedCase[] = [];
+  const results: EnrichedCase[] = [];
 
-  for (const vc of verifiedCases) {
-    const { object: enrichment } = await generateObject({
-      model: primaryModel,
-      schema: enrichmentSchema,
-      prompt: `You are an enrichment agent for a podcast platform serving Irish vulnerable, challenged, and survivor communities.
+  for (const c of cases) {
+    try {
+      const { object } = await generateObject({
+        model: primaryModel,
+        schema: EnrichmentSchema,
+        prompt: `Enrich this podcast case lead with structured information:
 
-Analyse this verified case and extract structured information.
+Title: ${c.title}
+Source: ${c.sourceUrl}
+Snippet: ${c.snippet}
 
-Title: ${vc.title}
-Source: ${vc.sourceUrl}
-Domain: ${vc.domain}
-Snippet: ${vc.snippet}
-Credibility Score: ${vc.credibilityScore}
-Corroborating Sources: ${vc.corroboratingSources.join(", ")}
-
-RULES:
-- issueCategory: classify into one of the 7 categories
-- region: geographic region in Ireland/UK/EU
+Extract:
+- issueCategory: the primary issue type
+- region: geographic region of the story
 - timeline: when events occurred
-- currentStatus: current state of the situation
-- guestReadiness: "experienced" if evidence of prior interviews, op-eds, public advocacy; "first_time" otherwise
-- contactPathway: prefer intermediary org email > official support contact > direct public email. NEVER invent a contact — leave as empty string if none found in source material
-- summary: max 150 words, plain language, no jargon
-- hasMinorInvolved: true if any person under 18 is mentioned in any capacity`,
-    });
+- currentStatus: current situation of the person
+- guestReadiness: 'experienced' if they have given interviews before,
+  'first_time' if this appears to be their first public sharing
+- contactPathway: best contact route — prefer NGO or support org
+  over direct personal contact. Leave empty string if none found.
+- summary: 150 word plain English summary, no jargon
+- hasMinorInvolved: true if anyone under 18 is mentioned`,
+      });
 
-    const { embedding: embeddingResult } = await embed({
-      model: embeddingModel,
-      value: enrichment.summary,
-    });
+      const { embedding } = await embed({
+        model: embeddingModel,
+        value: object.summary,
+      });
 
-    const dbCase = await insertCase({
-      title: vc.title,
-      summary: enrichment.summary,
-      credibilityScore: vc.credibilityScore,
-      category: enrichment.issueCategory,
-      region: enrichment.region,
-      guestReadiness: enrichment.guestReadiness,
-      contactPathway: enrichment.contactPathway || null,
-      sourceUrls: [vc.sourceUrl, ...vc.corroboratingSources],
-      pipelineStatus: "enriched",
-      embedding: JSON.stringify(embeddingResult),
-    });
-
-    enriched.push({
-      id: dbCase.id,
-      title: vc.title,
-      sourceUrl: vc.sourceUrl,
-      credibilityScore: vc.credibilityScore,
-      ...enrichment,
-      embedding: embeddingResult,
-    });
+      results.push({ ...c, ...object, embedding });
+    } catch (err) {
+      console.error(`Enrichment failed for case: ${c.title}`, err);
+    }
   }
 
-  return enriched;
+  return results;
 }

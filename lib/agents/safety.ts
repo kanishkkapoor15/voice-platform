@@ -1,75 +1,65 @@
 import { generateObject } from "ai";
-import { reasoningModel } from "@/lib/ai/client";
 import { z } from "zod";
-import { updateCase } from "@/lib/db/queries";
-import { insertHumanReview } from "@/lib/db/queries";
-import type { EnrichedCase, SafetyResult } from "./types";
+import { reasoningModel } from "@/lib/ai/client";
+import { addToHumanReview, updateCase } from "@/lib/db/queries";
+import type { EnrichedCase } from "./enrichment";
 
-const safetySchema = z.object({
-  acuteDistress: z
-    .boolean()
-    .describe("Language suggesting person is in immediate danger"),
-  activeLegalProceedings: z
-    .boolean()
-    .describe("Mentions ongoing court case that precludes public discussion"),
-  noPublicDisclosure: z
-    .boolean()
-    .describe("Person has not chosen to go public with their story"),
-  minorInvolved: z
-    .boolean()
-    .describe("Any mention of a person under 18"),
-  overallSafe: z
-    .boolean()
-    .describe("True ONLY if all four flags above are false"),
-  flagReason: z
-    .string()
-    .describe("Required if overallSafe is false, blank otherwise"),
+const SafetyResultSchema = z.object({
+  acuteDistress: z.boolean(),
+  activeLegalProceedings: z.boolean(),
+  noPublicDisclosure: z.boolean(),
+  minorInvolved: z.boolean(),
+  overallSafe: z.boolean(),
+  flagReason: z.string(),
 });
 
+export type SafetyResult = z.infer<typeof SafetyResultSchema>;
+
 export async function runSafetyScreeningAgent(
-  enrichedCase: EnrichedCase
-): Promise<SafetyResult> {
-  const { object: screening } = await generateObject({
+  enrichedCase: EnrichedCase,
+  dbCaseId: string
+): Promise<{ safe: boolean }> {
+  // THIS FUNCTION MUST NEVER BE SKIPPED
+  // If it throws, the pipeline runner must catch and halt this case
+
+  const { object } = await generateObject({
     model: reasoningModel,
-    schema: safetySchema,
-    prompt: `You are a safety screening agent for a podcast platform that invites vulnerable and survivor communities to share their stories. Analyse the following case for safety concerns.
+    schema: SafetyResultSchema,
+    prompt: `You are a safety screening agent for a podcast that works
+with vulnerable communities. Carefully analyse this case for risks:
 
-You MUST flag as unsafe if ANY of these conditions are true:
-- The person appears to be in acute distress or immediate danger
-- There are active legal proceedings that would preclude public discussion
-- The person has not publicly disclosed their story
-- Any person under 18 is involved in ANY capacity
-
-Case Title: ${enrichedCase.title}
-Case Summary: ${enrichedCase.summary}
+Title: ${enrichedCase.title}
+Summary: ${enrichedCase.summary}
 Category: ${enrichedCase.issueCategory}
-Region: ${enrichedCase.region}
-Timeline: ${enrichedCase.timeline}
-Current Status: ${enrichedCase.currentStatus}
-Has Minor Involved (from enrichment): ${enrichedCase.hasMinorInvolved}
-Source URL: ${enrichedCase.sourceUrl}
+Current status: ${enrichedCase.currentStatus}
+Has minor involved: ${enrichedCase.hasMinorInvolved}
 
-Respond with your safety assessment. overallSafe must be true ONLY if acuteDistress, activeLegalProceedings, noPublicDisclosure, and minorInvolved are ALL false. If any are true, overallSafe must be false and flagReason must explain why.`,
+Assess:
+- acuteDistress: does the language suggest the person is in
+  immediate danger right now?
+- activeLegalProceedings: are there mentions of ongoing court
+  cases that would make public discussion harmful?
+- noPublicDisclosure: has this person NOT chosen to go public?
+- minorInvolved: is anyone under 18 involved in this case?
+- overallSafe: true ONLY if all four above are false
+- flagReason: if not safe, explain exactly why in one sentence.
+  If safe, return empty string.
+
+When in doubt, flag it. Err on the side of caution.`,
   });
 
-  if (enrichedCase.hasMinorInvolved && !screening.minorInvolved) {
-    screening.minorInvolved = true;
-    screening.overallSafe = false;
-    screening.flagReason = screening.flagReason
-      ? `${screening.flagReason}; Minor involvement detected in enrichment stage`
-      : "Minor involvement detected in enrichment stage";
+  if (!object.overallSafe || enrichedCase.hasMinorInvolved) {
+    const reason = enrichedCase.hasMinorInvolved
+      ? "Minor involved — automatic hold for human review"
+      : object.flagReason;
+
+    await addToHumanReview(dbCaseId, reason);
+    return { safe: false };
   }
 
-  if (!screening.overallSafe) {
-    await insertHumanReview(enrichedCase.id, screening.flagReason);
-    await updateCase(enrichedCase.id, { pipelineStatus: "human_review" });
-    return { safe: false, ...screening };
-  }
-
-  await updateCase(enrichedCase.id, {
+  await updateCase(dbCaseId, {
     safetyCleared: true,
     pipelineStatus: "screened",
   });
-
-  return { safe: true, ...screening };
+  return { safe: true };
 }

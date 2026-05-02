@@ -1,12 +1,28 @@
-export function buildInviteEmail(params: {
-  caseName: string;
-  emailBody: string;
-}): string {
-  return `Dear ${params.caseName},
+import { Resend } from "resend";
 
-${params.emailBody}
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
----
-Voice Platform — Amplifying Community Voices
-This email was sent by Voice Platform. If you received this in error, please disregard it.`;
+export async function sendInviteEmail(params: {
+  to: string;
+  body: string;
+  caseTitle: string;
+}) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn(
+      "RESEND_API_KEY not set — email not sent. Body logged below:"
+    );
+    console.log(`To: ${params.to}`);
+    console.log(`Case: ${params.caseTitle}`);
+    console.log(params.body);
+    return;
+  }
+
+  await getResend().emails.send({
+    from: "Voice Platform <hello@voiceplatform.com>",
+    to: params.to,
+    subject: `An invitation from Voice Platform`,
+    text: params.body,
+  });
 }

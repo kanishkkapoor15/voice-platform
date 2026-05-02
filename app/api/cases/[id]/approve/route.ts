@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
-import { getCaseById, updateCase } from "@/lib/db/queries";
+import { getCaseById, approveCase } from "@/lib/db/queries";
 import { runOutreachAgent } from "@/lib/agents/outreach";
 
 export async function POST(
@@ -10,41 +10,28 @@ export async function POST(
   const auth = await requireAuth();
   if (!auth.authorized) return auth.response;
 
-  const { id } = await params;
-  const caseRecord = await getCaseById(id);
-
-  if (!caseRecord) {
-    return NextResponse.json({ error: "Case not found" }, { status: 404 });
-  }
-
-  if (!caseRecord.safetyCleared) {
-    return NextResponse.json(
-      { error: "Case has not been safety cleared" },
-      { status: 400 }
-    );
-  }
-
-  if (caseRecord.pipelineStatus !== "matched") {
-    return NextResponse.json(
-      { error: "Case must be in 'matched' status to approve" },
-      { status: 400 }
-    );
-  }
-
-  await updateCase(id, {
-    approvedAt: new Date(),
-    pipelineStatus: "approved",
-  });
-
   try {
-    const invitation = await runOutreachAgent(id);
-    return NextResponse.json({ invitation });
-  } catch (error) {
+    const { id } = await params;
+    const c = await getCaseById(id);
+
+    if (!c) {
+      return NextResponse.json({ error: "Case not found" }, { status: 404 });
+    }
+    if (!c.safetyCleared) {
+      return NextResponse.json(
+        { error: "Case has not passed safety screening" },
+        { status: 400 }
+      );
+    }
+
+    await approveCase(id);
+    await runOutreachAgent(id);
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Approve error:", err);
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Outreach failed",
-        note: "Case is approved but outreach could not be sent. Manual action required.",
-      },
+      { error: err instanceof Error ? err.message : "Failed to approve case" },
       { status: 500 }
     );
   }

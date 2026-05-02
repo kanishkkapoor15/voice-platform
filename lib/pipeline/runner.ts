@@ -3,74 +3,91 @@ import { runVerificationAgent } from "@/lib/agents/verification";
 import { runEnrichmentAgent } from "@/lib/agents/enrichment";
 import { runSafetyScreeningAgent } from "@/lib/agents/safety";
 import { runEpisodeMatchingAgent } from "@/lib/agents/matching";
-import { insertHumanReview, updateCase } from "@/lib/db/queries";
-import type { PipelineResult } from "@/lib/agents/types";
+import {
+  createCase,
+  addToHumanReview,
+} from "@/lib/db/queries";
+
+export type PipelineResult = {
+  casesFound: number;
+  casesCleared: number;
+  casesHeld: number;
+  errors: string[];
+};
 
 export async function runFullPipeline(input: {
   topic: string;
   keywords: string[];
 }): Promise<PipelineResult> {
-  let casesFound = 0;
-  let casesCleared = 0;
-  let casesHeld = 0;
+  const result: PipelineResult = {
+    casesFound: 0,
+    casesCleared: 0,
+    casesHeld: 0,
+    errors: [],
+  };
 
-  // Stage 1: Discovery
-  const rawLeads = await runDiscoveryAgent(input);
-  casesFound = rawLeads.length;
+  // Step 1: Discovery
+  const leads = await runDiscoveryAgent(input);
+  result.casesFound = leads.length;
 
-  // Stage 2: Verification
-  const verifiedCases = await runVerificationAgent(rawLeads);
-  const passedVerification = verifiedCases.filter((c) => c.verified);
-  const failedVerification = verifiedCases.filter((c) => !c.verified);
-  casesHeld += failedVerification.length;
+  // Step 2: Verification
+  const verified = await runVerificationAgent(leads);
 
-  // Stage 3: Enrichment
-  const enrichedCases = await runEnrichmentAgent(passedVerification);
+  // Step 3: Enrichment
+  const enriched = await runEnrichmentAgent(verified);
 
-  // Stage 4: Safety Screening — REQUIRED, MUST NOT BE SKIPPED
-  for (const enrichedCase of enrichedCases) {
-    let safetyRan = false;
-
+  // Step 4-6: Per-case pipeline
+  for (const c of enriched) {
     try {
-      const safetyResult = await runSafetyScreeningAgent(enrichedCase);
-      safetyRan = true;
+      // Save to database first
+      const dbCase = await createCase({
+        title: c.title,
+        summary: c.summary,
+        credibilityScore: c.credibilityScore,
+        category: c.issueCategory,
+        region: c.region,
+        guestReadiness: c.guestReadiness,
+        contactPathway: c.contactPathway || null,
+        sourceUrls: [c.sourceUrl],
+        pipelineStatus: "enriched",
+        embedding: c.embedding,
+      });
 
-      if (!safetyResult.safe) {
-        casesHeld++;
+      if (!dbCase) {
+        result.errors.push(`Failed to save case: ${c.title}`);
         continue;
       }
 
-      // Stage 5: Episode Matching — only if safety passed
+      // SAFETY SCREENING — CANNOT BE SKIPPED
+      let safetyResult: { safe: boolean };
       try {
-        await runEpisodeMatchingAgent(enrichedCase.id, enrichedCase.embedding);
-        casesCleared++;
-      } catch (matchError) {
-        console.error(
-          `Matching failed for case ${enrichedCase.id}:`,
-          matchError
+        safetyResult = await runSafetyScreeningAgent(c, dbCase.id);
+      } catch (err) {
+        // Safety agent failed — treat as unsafe, hold for review
+        await addToHumanReview(
+          dbCase.id,
+          "Safety screening failed — manual review required"
         );
-        await updateCase(enrichedCase.id, { pipelineStatus: "screened" });
-        casesCleared++;
+        result.casesHeld++;
+        result.errors.push(
+          `Safety agent error for case ${c.title}: ${String(err)}`
+        );
+        continue;
       }
-    } catch (error) {
-      console.error(
-        `Pipeline error for case ${enrichedCase.id}:`,
-        error
-      );
-      await updateCase(enrichedCase.id, { pipelineStatus: "human_review" });
-      await insertHumanReview(
-        enrichedCase.id,
-        `Pipeline error: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
-      casesHeld++;
-    }
 
-    if (!safetyRan) {
-      throw new Error(
-        `CRITICAL: Safety screening was not executed for case ${enrichedCase.id}. Pipeline halted. This is a safety violation.`
-      );
+      if (!safetyResult.safe) {
+        result.casesHeld++;
+        continue;
+      }
+
+      // Episode matching
+      await runEpisodeMatchingAgent(dbCase.id, c.summary ?? "", c.embedding);
+
+      result.casesCleared++;
+    } catch (err) {
+      result.errors.push(`Pipeline error for case ${c.title}: ${String(err)}`);
     }
   }
 
-  return { casesFound, casesCleared, casesHeld };
+  return result;
 }

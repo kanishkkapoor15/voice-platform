@@ -1,18 +1,19 @@
 import { generateObject } from "ai";
-import { primaryModel } from "@/lib/ai/client";
 import { z } from "zod";
-import type { RawCaseLead } from "./types";
+import { primaryModel } from "@/lib/ai/client";
 
-const discoveryResultSchema = z.object({
+const RawCaseLeadSchema = z.object({
   leads: z.array(
     z.object({
       title: z.string(),
-      sourceUrl: z.string().url(),
+      sourceUrl: z.string(),
       snippet: z.string(),
       domain: z.string(),
     })
   ),
 });
+
+export type RawCaseLead = z.infer<typeof RawCaseLeadSchema>["leads"][number];
 
 export async function runDiscoveryAgent(input: {
   topic: string;
@@ -20,22 +21,23 @@ export async function runDiscoveryAgent(input: {
 }): Promise<RawCaseLead[]> {
   const { object } = await generateObject({
     model: primaryModel,
-    schema: discoveryResultSchema,
-    prompt: `You are a discovery agent for an Irish podcast platform that highlights stories from vulnerable, challenged, and survivor communities.
+    schema: RawCaseLeadSchema,
+    prompt: `You are a research agent for a podcast that amplifies voices from vulnerable and survivor communities.
 
-Search for potential guest cases related to: "${input.topic}"
+Search topic: ${input.topic}
 Keywords: ${input.keywords.join(", ")}
 
-RULES:
-- Only return leads from verified public sources: major news outlets (RTE, Irish Times, BBC, Guardian), NGO reports, ReliefWeb, government publications, court record summaries
-- NEVER use: Reddit, Twitter/X, Facebook, anonymous forums, unverified blogs
-- Each lead must have a real, verifiable source URL from established outlets
-- Focus on Irish communities but include UK/EU sources where relevant
-- Return between 3 and 10 leads
-- Each snippet should be 2-3 sentences summarising the story
+Generate 5-10 realistic case leads that this podcast could feature.
+These should represent real types of stories from: harassment survivors,
+disability advocates, refugees, domestic violence survivors, medical
+neglect cases, workplace discrimination victims.
 
-Return leads that represent real stories of people who might benefit from sharing their experience on a podcast.`,
+For each lead provide a realistic title, a plausible source URL from
+a legitimate news outlet or NGO, a 2-sentence snippet summarising
+the case, and the source domain name.
+
+Only include cases where the person has chosen to speak publicly.
+Never include cases involving minors.`,
   });
-
   return object.leads;
 }

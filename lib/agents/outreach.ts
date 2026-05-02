@@ -1,79 +1,65 @@
 import { generateText } from "ai";
 import { primaryModel } from "@/lib/ai/client";
-import { Resend } from "resend";
-import { getCaseById, insertInvitation } from "@/lib/db/queries";
-import type { Invitation } from "@/lib/db/schema";
+import { getCaseById, updateCase } from "@/lib/db/queries";
+import { db } from "@/lib/db";
+import { invitations } from "@/lib/db/schema";
+import { sendInviteEmail } from "@/lib/email/invite-template";
 
-function getResend() {
-  return new Resend(process.env.RESEND_API_KEY);
-}
+export async function runOutreachAgent(caseId: string): Promise<void> {
+  const c = await getCaseById(caseId);
 
-export async function runOutreachAgent(caseId: string): Promise<Invitation> {
-  const caseRecord = await getCaseById(caseId);
-  if (!caseRecord) throw new Error(`Case ${caseId} not found`);
-
-  if (!caseRecord.approvedAt) {
+  if (!c) throw new Error(`Case ${caseId} not found`);
+  if (!c.approvedAt) {
     throw new Error(
-      `HARD RULE VIOLATION: Case ${caseId} has not been approved. approvedAt is null. Outreach cannot proceed without explicit editorial approval.`
+      `Case ${caseId} has not been approved. Cannot send invite.`
     );
   }
-
-  if (!caseRecord.contactPathway) {
+  if (!c.contactPathway) {
     console.warn(
-      `Case ${caseId}: No contact pathway found. Flagging for manual editorial action.`
+      `Case ${caseId} has no contact pathway. Flagging for manual action.`
     );
-    throw new Error(
-      `Case ${caseId} has no contact pathway. Manual editorial action required.`
-    );
+    await updateCase(caseId, { pipelineStatus: "approved" });
+    return;
   }
-
-  const firstTimeExtra = caseRecord.guestReadiness === "first_time"
-    ? "\nIMPORTANT: This person has not appeared on a podcast before. Include an extra paragraph of reassurance explaining what the experience is like, that they will have full editorial control over their segment, and that a pre-interview call will happen first."
-    : "";
 
   const { text: emailBody } = await generateText({
     model: primaryModel,
-    prompt: `You are drafting an invitation email for Voice Platform, an Irish podcast that amplifies stories from vulnerable, challenged, and survivor communities.
+    prompt: `Write a warm, personal invitation email for a podcast
+called Voice Platform that gives vulnerable communities a platform
+to share their stories.
 
-Draft a warm, human invitation email for this potential guest:
+Case context: ${c.summary}
+Guest readiness: ${c.guestReadiness}
+Category: ${c.category}
 
-Name/Case: ${caseRecord.title}
-Summary: ${caseRecord.summary}
-Category: ${caseRecord.category}
-Region: ${caseRecord.region}
-Guest Readiness: ${caseRecord.guestReadiness}
-${firstTimeExtra}
+The email must:
+- Be warm and human, not corporate
+- Explain who we are and why we reached out to them specifically
+- Make absolutely clear participation is voluntary
+- Describe what appearing on the podcast involves (recorded conversation,
+  ~45 minutes, guest approves content before release)
+- Include clear opt-out: just don't reply, no explanation needed
+- Set a 2 week response window
+${
+  c.guestReadiness === "first_time"
+    ? "- Add an extra reassuring paragraph for someone who has never spoken publicly before"
+    : ""
+}
 
-TONE AND CONTENT RULES:
-- Warm and human — not corporate or formulaic
-- Explain who Voice Platform is and why this person's story matters
-- Make absolutely clear that participation is entirely voluntary
-- Describe what appearing on the podcast involves (pre-interview, recording, editorial review)
-- Include clear opt-out instructions
-- Set a 2-week response window
-- Sign off as "The Voice Platform Team"
-
-Do NOT include a subject line — just the email body.`,
+Subject line should be warm and specific to their story.
+Sign off as "The Voice Platform Team".`,
   });
 
-  const episodeMatch = caseRecord.episodeMatches
-    ? (JSON.parse(caseRecord.episodeMatches as string) as Array<{ episodeId: string }>)[0]
-    : null;
-
-  await getResend().emails.send({
-    from: "Voice Platform <invite@voiceplatform.com>",
-    to: caseRecord.contactPathway,
-    subject: `Voice Platform — Invitation to Share Your Story`,
-    text: emailBody,
+  await sendInviteEmail({
+    to: c.contactPathway,
+    body: emailBody,
+    caseTitle: c.title ?? "",
   });
 
-  const invitation = await insertInvitation({
+  await db.insert(invitations).values({
     caseId,
-    episodeId: episodeMatch?.episodeId ?? null,
     status: "sent",
     inviteEmailBody: emailBody,
     sentAt: new Date(),
   });
-
-  return invitation;
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/session";
-import { getAllCases, insertCase } from "@/lib/db/queries";
+import { getAllCases, createCase } from "@/lib/db/queries";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -28,6 +28,6 @@ export async function POST(request: NextRequest) {
   if (!auth.authorized) return auth.response;
 
   const body = await request.json();
-  const newCase = await insertCase(body);
+  const newCase = await createCase(body);
   return NextResponse.json(newCase, { status: 201 });
 }
