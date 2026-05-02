@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Voice Platform
 
-## Getting Started
+A multi-agent podcast platform that helps Irish vulnerable, challenged, and survivor communities share their stories. The platform uses an AI-powered pipeline to discover potential guest cases from verified public sources, screen them for safety, match them to episode themes, and manage consent-first outreach — all under editorial human oversight.
 
-First, run the development server:
+## Tech Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Framework:** Next.js 15 (App Router, TypeScript)
+- **Styling:** Tailwind CSS
+- **Database:** PostgreSQL with pgvector for semantic search
+- **ORM:** Drizzle ORM
+- **AI:** Vercel AI SDK with OpenAI (GPT-4o, text-embedding-3-small)
+- **Email:** Resend
+- **Auth:** NextAuth.js (Credentials provider)
+- **CI:** GitHub Actions (lint + typecheck)
+- **Deployment:** Vercel
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/YOUR_GITHUB_USERNAME/voice-platform.git
+   cd voice-platform
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-## Learn More
+3. Fill in environment variables in `.env.local`:
+   ```
+   OPENAI_API_KEY=your-key
+   POSTGRES_URL=your-postgres-url
+   RESEND_API_KEY=your-resend-key
+   NEXTAUTH_SECRET=your-secret
+   NEXTAUTH_URL=http://localhost:3000
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+4. Run database migrations:
+   ```bash
+   npx drizzle-kit push
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Start the dev server:
+   ```bash
+   npm run dev
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Safety Policy
 
-## Deploy on Vercel
+This platform enforces strict safety rules in code, not just documentation:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Safety screening cannot be skipped.** Every case passes through the safety screening agent before it can proceed in the pipeline. The pipeline runner throws an error if this step is bypassed.
+- **No invitation without approval.** The outreach agent verifies that a case has been explicitly approved by an editor before sending any communication. Unapproved cases cannot trigger outreach.
+- **Minor cases never proceed automatically.** Any case involving a person under 18 is immediately routed to the human review queue regardless of other scores or safety signals.
+- **Contact pathways are never invented.** If no verifiable contact method is found in source material, the field is left blank and flagged for manual editorial action.
+- **Intermediary pathways preferred.** Direct individual contact is never used when an intermediary organisation pathway exists.
