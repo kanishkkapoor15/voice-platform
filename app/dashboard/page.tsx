@@ -12,6 +12,11 @@ interface CaseRecord {
   category: string | null;
   guestReadiness: string | null;
   contactPathway: string | null;
+  personName: string | null;
+  personEmail: string | null;
+  personPhone: string | null;
+  socialMedia: Record<string, string> | string | null;
+  sourceLink: string | null;
   pipelineStatus: string | null;
   episodeMatches: string | null;
 }

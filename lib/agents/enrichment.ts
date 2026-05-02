@@ -3,6 +3,15 @@ import { z } from "zod";
 import { primaryModel, embeddingModel } from "@/lib/ai/client";
 import type { VerifiedCase } from "./verification";
 
+const SocialMediaSchema = z.object({
+  twitter: z.string().optional(),
+  linkedin: z.string().optional(),
+  facebook: z.string().optional(),
+  instagram: z.string().optional(),
+  tiktok: z.string().optional(),
+  other: z.string().optional(),
+});
+
 const EnrichmentSchema = z.object({
   issueCategory: z.enum([
     "harassment",
@@ -18,6 +27,11 @@ const EnrichmentSchema = z.object({
   currentStatus: z.string(),
   guestReadiness: z.enum(["experienced", "first_time"]),
   contactPathway: z.string(),
+  personName: z.string(),
+  personEmail: z.string(),
+  personPhone: z.string(),
+  socialMedia: SocialMediaSchema,
+  sourceLink: z.string(),
   summary: z.string().max(800),
   hasMinorInvolved: z.boolean(),
 });
@@ -52,6 +66,12 @@ Extract:
   'first_time' if this appears to be their first public sharing
 - contactPathway: best contact route — prefer NGO or support org
   over direct personal contact. Leave empty string if none found.
+- personName: full name of the person featured in the story. Leave empty string if not identifiable.
+- personEmail: email address if publicly available. Leave empty string if not found.
+- personPhone: phone or contact number if publicly available. Leave empty string if not found.
+- socialMedia: an object with optional keys: twitter, linkedin, facebook, instagram, tiktok, other.
+  Extract any public social media handles or profile URLs mentioned. Leave keys absent if not found.
+- sourceLink: the direct URL to the original source article or report. Use the sourceUrl if no better link found.
 - summary: 150 word plain English summary, no jargon
 - hasMinorInvolved: true if anyone under 18 is mentioned`,
       });

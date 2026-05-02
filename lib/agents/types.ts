@@ -15,6 +15,15 @@ export interface VerifiedCase {
   verified: boolean;
 }
 
+export interface SocialMediaHandles {
+  twitter?: string;
+  linkedin?: string;
+  facebook?: string;
+  instagram?: string;
+  tiktok?: string;
+  other?: string;
+}
+
 export interface EnrichedCase {
   id: string;
   title: string;
@@ -33,6 +42,11 @@ export interface EnrichedCase {
   currentStatus: string;
   guestReadiness: "experienced" | "first_time";
   contactPathway: string;
+  personName: string;
+  personEmail: string;
+  personPhone: string;
+  socialMedia: SocialMediaHandles;
+  sourceLink: string;
   summary: string;
   hasMinorInvolved: boolean;
   embedding: number[];
