@@ -11,6 +11,7 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "lua-agent/**",
     "next-env.d.ts",
   ]),
 ]);
