@@ -1,0 +1,15 @@
+agent:
+  agentId: baseAgent_agent_1777720573365_wtz7qmfug
+  orgId: 84cf1ce3-ab08-458d-806f-6a69d077ecd8
+skills:
+  - name: voice-platform-pipeline
+    skillId: fe8c95fa-0ffa-416e-92f8-98883af7c111
+    version: 1.0.2
+webhooks: []
+jobs: []
+preprocessors: []
+postprocessors: []
+mcpServers: []
+backup:
+  lastHash: 43cdb4c814f68717de9789e6afcdc5afe884c6c835ae110953d28cb69be86def
+  lastPushedAt: '2026-05-02T14:07:18.598Z'
