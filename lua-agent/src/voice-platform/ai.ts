@@ -11,26 +11,36 @@ type GenerateJsonInput<T> = {
 };
 
 function extractJson(text: string): unknown {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = (fenced?.[1] ?? text).trim();
+  const trimmed = text.trim();
 
-  try {
-    return JSON.parse(candidate);
-  } catch {
-    const firstObject = candidate.indexOf("{");
-    const lastObject = candidate.lastIndexOf("}");
-    if (firstObject !== -1 && lastObject > firstObject) {
-      return JSON.parse(candidate.slice(firstObject, lastObject + 1));
-    }
+  // 1. Direct parse — model obeyed "no markdown" instruction
+  try { return JSON.parse(trimmed); } catch {}
 
-    const firstArray = candidate.indexOf("[");
-    const lastArray = candidate.lastIndexOf("]");
-    if (firstArray !== -1 && lastArray > firstArray) {
-      return JSON.parse(candidate.slice(firstArray, lastArray + 1));
-    }
-
-    throw new Error(`AI response did not contain valid JSON: ${text}`);
+  // 2. Outermost braces on raw text — handles URLs containing ```json inside string values
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try { return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1)); } catch {}
   }
+
+  const firstBracket = trimmed.indexOf("[");
+  const lastBracket = trimmed.lastIndexOf("]");
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    try { return JSON.parse(trimmed.slice(firstBracket, lastBracket + 1)); } catch {}
+  }
+
+  // 3. Fenced code block — last resort; can be tripped by backticks inside string values
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) {
+    const inner = fenced[1].trim();
+    try { return JSON.parse(inner); } catch {}
+    const fb = inner.indexOf("{"), lb = inner.lastIndexOf("}");
+    if (fb !== -1 && lb > fb) {
+      try { return JSON.parse(inner.slice(fb, lb + 1)); } catch {}
+    }
+  }
+
+  throw new Error(`AI response did not contain valid JSON: ${text}`);
 }
 
 export async function generateJson<T>({
