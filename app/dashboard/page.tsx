@@ -24,6 +24,8 @@ export default function DashboardPage() {
   const [topic, setTopic] = useState("");
   const [keywords, setKeywords] = useState("");
   const [running, setRunning] = useState(false);
+  const [discoveryResult, setDiscoveryResult] = useState<string | null>(null);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     category: "",
     status: "",
@@ -62,18 +64,41 @@ export default function DashboardPage() {
 
   async function handleDiscovery() {
     setRunning(true);
+    setDiscoveryError(null);
+    setDiscoveryResult(null);
     const kw = keywords
       .split(",")
       .map((k) => k.trim())
       .filter(Boolean);
-    await fetch("/api/workflow/discovery", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic, keywords: kw }),
-    });
-    setRunning(false);
-    setDiscoveryOpen(false);
-    fetchCasesRef();
+
+    try {
+      const res = await fetch("/api/workflow/discovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, keywords: kw }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDiscoveryError(
+          data.detail || data.error || `Request failed (${res.status})`
+        );
+      } else {
+        setDiscoveryResult(
+          `Found ${data.casesFound}, cleared ${data.casesCleared}, held ${data.casesHeld}` +
+            (data.errors?.length ? ` — ${data.errors.length} error(s)` : "")
+        );
+        if (data.errors?.length) {
+          console.error("Pipeline errors:", data.errors);
+        }
+        fetchCasesRef();
+      }
+    } catch (err) {
+      setDiscoveryError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunning(false);
+    }
   }
 
   async function handleArchive(id: string) {
@@ -208,6 +233,31 @@ export default function DashboardPage() {
                 />
               </div>
             </div>
+
+            {running && (
+              <div className="mt-4 rounded-md bg-blue-50 border border-blue-200 p-3">
+                <p className="text-sm text-blue-800">
+                  Running pipeline... this can take 1–5 minutes for the agents to
+                  discover, verify, enrich, screen, and match cases. Please wait.
+                </p>
+              </div>
+            )}
+
+            {discoveryResult && (
+              <div className="mt-4 rounded-md bg-green-50 border border-green-200 p-3">
+                <p className="text-sm text-green-800">{discoveryResult}</p>
+              </div>
+            )}
+
+            {discoveryError && (
+              <div className="mt-4 rounded-md bg-red-50 border border-red-200 p-3">
+                <p className="text-sm font-medium text-red-800">Pipeline error</p>
+                <p className="mt-1 text-xs text-red-700 whitespace-pre-wrap">
+                  {discoveryError}
+                </p>
+              </div>
+            )}
+
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setDiscoveryOpen(false)}

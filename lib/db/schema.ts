@@ -23,7 +23,7 @@ export const cases = pgTable("cases", {
   pipelineStatus: text("pipeline_status").default("pending"),
   safetyCleared: boolean("safety_cleared").default(false),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
-  embedding: vector("embedding", { dimensions: 1536 }),
+  embedding: vector("embedding", { dimensions: 4096 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
@@ -33,7 +33,7 @@ export const episodeThemes = pgTable("episode_themes", {
   title: text("title").notNull(),
   description: text("description"),
   airDate: timestamp("air_date", { withTimezone: true }),
-  embedding: vector("embedding", { dimensions: 1536 }),
+  embedding: vector("embedding", { dimensions: 4096 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
